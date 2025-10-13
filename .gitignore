@@ -1,0 +1,17 @@
+# Dataset (बहुत बड़ी file है, upload नहीं करनी)
+dataset/*.csv
+
+# Models (बड़ी files)
+models/*.pkl
+
+# Python temporary files
+__pycache__/
+*.pyc
+
+# Environment files
+venv/
+.env
+
+# IDE files
+.vscode/
+.idea/
