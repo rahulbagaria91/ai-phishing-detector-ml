@@ -4,176 +4,157 @@
   <meta charset="UTF-8">
   <title>AI Phishing Detector</title>
   <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
     body {
-      width: 350px;
-      padding: 20px;
-      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-      margin: 0;
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      width: 340px;
+      background: #0d1117;
+      color: #e6edf3;
+      font-family: 'Segoe UI', Arial, sans-serif;
+      font-size: 13px;
     }
-    
-    .container {
-      background: white;
-      border-radius: 15px;
-      padding: 20px;
-      box-shadow: 0 10px 30px rgba(0,0,0,0.2);
-    }
-    
-    h1 {
-      color: #667eea;
-      font-size: 22px;
-      margin: 0 0 10px 0;
-      text-align: center;
-    }
-    
-    .subtitle {
-      text-align: center;
-      color: #666;
-      font-size: 12px;
-      margin-bottom: 20px;
-    }
-    
-    #checkBtn {
-      width: 100%;
-      padding: 15px;
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-      color: white;
-      border: none;
-      border-radius: 10px;
-      font-size: 16px;
-      font-weight: bold;
-      cursor: pointer;
-      transition: transform 0.2s;
-    }
-    
-    #checkBtn:hover {
-      transform: scale(1.05);
-    }
-    
-    #checkBtn:disabled {
-      background: #ccc;
-      cursor: not-allowed;
-      transform: none;
-    }
-    
-    #result {
-      margin-top: 20px;
-      padding: 15px;
-      border-radius: 10px;
-      display: none;
-      animation: slideIn 0.3s ease;
-    }
-    
-    @keyframes slideIn {
-      from {
-        opacity: 0;
-        transform: translateY(-10px);
-      }
-      to {
-        opacity: 1;
-        transform: translateY(0);
-      }
-    }
-    
-    .safe {
-      background: #d4edda;
-      border: 2px solid #28a745;
-      color: #155724;
-    }
-    
-    .danger {
-      background: #f8d7da;
-      border: 2px solid #dc3545;
-      color: #721c24;
-    }
-    
-    .result-title {
-      font-weight: bold;
-      font-size: 18px;
-      margin-bottom: 10px;
+
+    /* Header */
+    .header {
+      background: #161b22;
+      border-bottom: 1px solid #30363d;
+      padding: 14px 16px;
       display: flex;
       align-items: center;
+      gap: 10px;
     }
-    
-    .result-icon {
-      font-size: 24px;
-      margin-right: 10px;
+    .shield {
+      width: 34px; height: 34px;
+      background: #1f6feb22;
+      border: 1px solid #1f6feb66;
+      border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 17px;
     }
-    
-    .result-details {
-      font-size: 14px;
-      margin-top: 10px;
+    .htext h1 { font-size: 14px; font-weight: 600; color: #f0f6fc; }
+    .htext p  { font-size: 11px; color: #8b949e; margin-top: 1px; }
+    .dot {
+      width: 8px; height: 8px; border-radius: 50%;
+      background: #3fb950; margin-left: auto;
+      animation: blink 2s infinite;
     }
-    
-    .confidence-bar {
-      width: 100%;
-      height: 20px;
-      background: #f0f0f0;
-      border-radius: 10px;
-      overflow: hidden;
-      margin-top: 10px;
+    @keyframes blink { 0%,100%{opacity:1} 50%{opacity:.3} }
+
+    /* Body */
+    .body { padding: 14px; }
+
+    /* URL pill */
+    .url-pill {
+      background: #161b22;
+      border: 1px solid #30363d;
+      border-radius: 8px;
+      padding: 9px 12px;
+      display: flex; align-items: center; gap: 8px;
+      margin-bottom: 12px;
     }
-    
-    .confidence-fill {
+    .url-pill span { font-size: 11px; color: #8b949e; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+    /* Button */
+    .btn {
+      width: 100%; padding: 11px;
+      background: #1f6feb;
+      border: none; border-radius: 8px;
+      color: #fff; font-size: 13px; font-weight: 600;
+      cursor: pointer; transition: background 0.2s;
+      display: flex; align-items: center; justify-content: center; gap: 7px;
+    }
+    .btn:hover { background: #388bfd; }
+    .btn:disabled { background: #21262d; color: #484f58; cursor: not-allowed; }
+
+    /* Loading */
+    .loading { display: none; text-align: center; padding: 18px 0; }
+    .bar { width: 100%; height: 3px; background: #21262d; border-radius: 2px; overflow: hidden; margin-bottom: 10px; }
+    .bar-fill {
       height: 100%;
-      background: linear-gradient(90deg, #28a745 0%, #20c997 100%);
-      transition: width 0.5s ease;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      color: white;
-      font-weight: bold;
-      font-size: 12px;
+      background: linear-gradient(90deg, transparent, #58a6ff, transparent);
+      animation: sweep 1.2s linear infinite;
+      width: 50%;
     }
-    
-    .loading {
-      text-align: center;
-      color: #667eea;
-      margin-top: 10px;
+    @keyframes sweep { 0%{transform:translateX(-200%)} 100%{transform:translateX(300%)} }
+    .loading p { font-size: 11px; color: #8b949e; }
+
+    /* Result */
+    .result {
       display: none;
+      margin-top: 12px;
+      border-radius: 8px;
+      padding: 13px;
+      border: 1px solid #30363d;
+      animation: fadein 0.3s ease;
     }
-    
-    .spinner {
-      border: 3px solid #f3f3f3;
-      border-top: 3px solid #667eea;
-      border-radius: 50%;
-      width: 30px;
-      height: 30px;
-      animation: spin 1s linear infinite;
-      margin: 10px auto;
+    @keyframes fadein { from{opacity:0;transform:translateY(5px)} to{opacity:1;transform:translateY(0)} }
+    .result.safe   { border-color: #2ea04366; background: #2ea04311; }
+    .result.danger { border-color: #f8514966; background: #f8514911; }
+    .result.info   { border-color: #58a6ff44; background: #58a6ff0a; }
+
+    .result-top { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+    .result-icon { font-size: 22px; }
+    .result-title { font-size: 15px; font-weight: 700; }
+    .result-sub   { font-size: 11px; color: #8b949e; margin-top: 2px; }
+
+    /* Confidence bar */
+    .conf-row { display: flex; justify-content: space-between; font-size: 11px; color: #8b949e; margin-bottom: 5px; }
+    .conf-row span:last-child { font-weight: 600; }
+    .conf-track { width:100%; height:5px; background:#21262d; border-radius:3px; overflow:hidden; margin-bottom:10px; }
+    .conf-fill  { height:100%; border-radius:3px; transition: width .7s ease; }
+    .conf-fill.safe   { background: #3fb950; }
+    .conf-fill.danger { background: #f85149; }
+
+    /* Tags row */
+    .tags { display:flex; gap:6px; flex-wrap:wrap; }
+    .tag {
+      font-size: 10px; font-weight: 600;
+      padding: 2px 9px; border-radius: 20px;
+      text-transform: uppercase; letter-spacing: .3px;
     }
-    
-    @keyframes spin {
-      0% { transform: rotate(0deg); }
-      100% { transform: rotate(360deg); }
-    }
-    
-    .url-display {
-      background: #f8f9fa;
-      padding: 10px;
-      border-radius: 5px;
-      font-size: 11px;
-      word-break: break-all;
+    .tag-safe   { background:#2ea04322; color:#3fb950; border:1px solid #2ea04344; }
+    .tag-danger { background:#f8514922; color:#f85149; border:1px solid #f8514944; }
+    .tag-warn   { background:#e3b34122; color:#e3b341; border:1px solid #e3b34144; }
+
+    /* Checked URL */
+    .checked-url {
       margin-top: 10px;
-      color: #666;
+      background: #161b22;
+      border: 1px solid #30363d;
+      border-radius: 6px;
+      padding: 7px 10px;
+      font-size: 10px; color: #8b949e;
+      word-break: break-all;
     }
   </style>
 </head>
 <body>
-  <div class="container">
-    <h1>🛡️ AI Phishing Detector</h1>
-    <p class="subtitle">Machine Learning-Powered Protection</p>
-    
-    <button id="checkBtn">Check This Website</button>
-    
-    <div class="loading" id="loading">
-      <div class="spinner"></div>
-      <p>Analyzing website...</p>
+
+  <div class="header">
+    <div class="shield">🛡️</div>
+    <div class="htext">
+      <h1>AI Phishing Detector</h1>
+      <p>ML-Powered · Real-time Protection</p>
     </div>
-    
-    <div id="result"></div>
+    <div class="dot" id="dot"></div>
   </div>
-  
+
+  <div class="body">
+    <div class="url-pill">
+      <span>🔗</span>
+      <span id="urlDisplay">Loading...</span>
+    </div>
+
+    <button class="btn" id="checkBtn">⚡ Scan This Website</button>
+
+    <div class="loading" id="loading">
+      <div class="bar"><div class="bar-fill"></div></div>
+      <p id="loadMsg">Analyzing website...</p>
+    </div>
+
+    <div class="result" id="result"></div>
+  </div>
+
   <script src="popup.js"></script>
 </body>
 </html>

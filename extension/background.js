@@ -1,199 +1,158 @@
-// Store checked URLs to avoid re-checking
-const checkedUrls = new Map();
-const CACHE_DURATION = 3600000; // 1 hour in milliseconds
+const API_URL      = 'http://localhost:5000/predict';
+const CACHE_TTL    = 3600000; // 1 hour
+const checkedUrls  = new Map();
 
-// Listen for tab updates (when user navigates to new page)
+const SKIP_PREFIXES = [
+  'chrome://', 'chrome-extension://', 'about:',
+  'edge://', 'moz-extension://', 'file://'
+];
+
+// ── Tab updated listener ──────────────────────────────────────
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
-  // Only check when page is completely loaded
-  if (changeInfo.status === 'complete' && tab.url) {
-    const url = tab.url;
-    
-    // Skip internal Chrome pages
-    if (url.startsWith('chrome://') || 
-        url.startsWith('chrome-extension://') ||
-        url.startsWith('about:') ||
-        url.startsWith('edge://')) {
-      return;
-    }
-    
-    // Check if URL was recently checked
-    const cached = checkedUrls.get(url);
-    if (cached && (Date.now() - cached.timestamp < CACHE_DURATION)) {
-      // Use cached result
-      if (!cached.is_safe) {
-        showWarning(tabId, cached);
-      }
-      updateBadge(tabId, cached.is_safe);
-      return;
-    }
-    
-    // Check URL with API
-    checkUrl(url, tabId);
+  if (changeInfo.status !== 'complete' || !tab.url) return;
+  if (SKIP_PREFIXES.some(p => tab.url.startsWith(p))) return;
+
+  const cached = checkedUrls.get(tab.url);
+  if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
+    updateBadge(tabId, cached.is_safe);
+    if (!cached.is_safe) injectWarning(tabId, cached);
+    return;
   }
+
+  checkUrl(tab.url, tabId);
 });
 
-// Function to check URL with API
+// ── Fetch prediction ──────────────────────────────────────────
 async function checkUrl(url, tabId) {
   try {
-    const response = await fetch('http://localhost:5000/predict', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ url: url })
+    const ctrl = new AbortController();
+    setTimeout(() => ctrl.abort(), 10000);
+    const res  = await fetch(API_URL, {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ url }),
+      signal:  ctrl.signal
     });
-    
-    const data = await response.json();
-    
-    // Cache result
-    checkedUrls.set(url, {
-      ...data,
-      timestamp: Date.now()
-    });
-    
-    // Update badge
+    const data = await res.json();
+
+    checkedUrls.set(url, { ...data, timestamp: Date.now() });
     updateBadge(tabId, data.is_safe);
-    
-    // Show warning if phishing detected
+
     if (!data.is_safe) {
-      showWarning(tabId, data);
+      injectWarning(tabId, data);
       showNotification(data);
     }
-    
-  } catch (error) {
-    console.error('Error checking URL:', error);
-    // If API is down, show neutral badge
+  } catch {
     updateBadge(tabId, null);
   }
 }
 
-// Update extension badge (icon indicator)
+// ── Badge ─────────────────────────────────────────────────────
 function updateBadge(tabId, isSafe) {
-  if (isSafe === true) {
-    chrome.action.setBadgeText({ text: '✓', tabId: tabId });
-    chrome.action.setBadgeBackgroundColor({ color: '#28a745', tabId: tabId });
-  } else if (isSafe === false) {
-    chrome.action.setBadgeText({ text: '!', tabId: tabId });
-    chrome.action.setBadgeBackgroundColor({ color: '#dc3545', tabId: tabId });
-  } else {
-    chrome.action.setBadgeText({ text: '', tabId: tabId });
-  }
+  const text  = isSafe === true ? '✓' : isSafe === false ? '!' : '';
+  const color = isSafe === true ? '#00cc66' : isSafe === false ? '#ff4466' : '#64748b';
+  chrome.action.setBadgeText({ text, tabId });
+  chrome.action.setBadgeBackgroundColor({ color, tabId });
 }
 
-// Show warning overlay on page
-function showWarning(tabId, data) {
+// ── Warning banner injected into page ────────────────────────
+function injectWarning(tabId, data) {
   chrome.scripting.executeScript({
-    target: { tabId: tabId },
-    func: displayWarningBanner,
-    args: [data]
-  });
+    target: { tabId },
+    func:   showWarningBanner,
+    args:   [data]
+  }).catch(() => {});
 }
 
-// Function injected into page to show warning
-function displayWarningBanner(data) {
-  // Check if banner already exists
-  if (document.getElementById('phishing-warning-banner')) {
-    return;
-  }
-  
-  // Create warning banner
-  const banner = document.createElement('div');
-  banner.id = 'phishing-warning-banner';
-  banner.style.cssText = `
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    z-index: 999999;
-    background: linear-gradient(135deg, #ff4444 0%, #cc0000 100%);
-    color: white;
-    padding: 15px 20px;
-    box-shadow: 0 4px 6px rgba(0,0,0,0.3);
-    font-family: Arial, sans-serif;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    animation: slideDown 0.3s ease;
-  `;
-  
-  banner.innerHTML = `
-    <div style="display: flex; align-items: center; gap: 15px;">
-      <div style="font-size: 28px;">⚠️</div>
-      <div>
-        <div style="font-weight: bold; font-size: 16px; margin-bottom: 5px;">
-          🛡️ Phishing Warning!
-        </div>
-        <div style="font-size: 13px;">
-          This website may be a phishing attempt. 
-          Confidence: ${data.confidence.phishing.toFixed(1)}% | 
-          Risk Level: ${data.risk_level}
-        </div>
-      </div>
-    </div>
-    <button id="close-warning-btn" style="
-      background: white;
-      color: #cc0000;
-      border: none;
-      padding: 8px 16px;
-      border-radius: 5px;
-      cursor: pointer;
-      font-weight: bold;
-      font-size: 14px;
-    ">
-      Dismiss
-    </button>
-  `;
-  
-  // Add animation
+function showWarningBanner(data) {
+  if (document.getElementById('ai-phishing-banner')) return;
+
   const style = document.createElement('style');
   style.textContent = `
-    @keyframes slideDown {
-      from {
-        transform: translateY(-100%);
-        opacity: 0;
-      }
-      to {
-        transform: translateY(0);
-        opacity: 1;
-      }
+    #ai-phishing-banner {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 2147483647;
+      background: linear-gradient(135deg, #1a0a0f 0%, #2d0f1a 100%);
+      border-bottom: 2px solid #ff4466;
+      color: #fff;
+      padding: 12px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      font-size: 13px;
+      box-shadow: 0 4px 30px rgba(255,68,102,0.3);
+      animation: slideIn 0.3s ease;
     }
+    @keyframes slideIn {
+      from { transform: translateY(-100%); opacity: 0; }
+      to   { transform: translateY(0);     opacity: 1; }
+    }
+    #ai-phishing-banner .b-icon { font-size: 22px; flex-shrink: 0; }
+    #ai-phishing-banner .b-text .b-title {
+      font-weight: 700; font-size: 14px;
+      color: #ff7799; margin-bottom: 2px;
+    }
+    #ai-phishing-banner .b-text .b-sub {
+      font-size: 11px; color: #ffaabb;
+    }
+    #ai-phishing-banner .b-close {
+      background: rgba(255,68,102,0.2);
+      border: 1px solid #ff446660;
+      color: #ff7799;
+      padding: 5px 14px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 600;
+      flex-shrink: 0;
+      transition: background 0.2s;
+    }
+    #ai-phishing-banner .b-close:hover { background: rgba(255,68,102,0.35); }
   `;
   document.head.appendChild(style);
-  
-  // Insert banner at top of page
-  document.body.insertBefore(banner, document.body.firstChild);
-  
-  // Close button functionality
-  document.getElementById('close-warning-btn').addEventListener('click', () => {
-    banner.style.animation = 'slideDown 0.3s ease reverse';
-    setTimeout(() => banner.remove(), 300);
-  });
-  
-  // Auto-hide after 10 seconds
+
+  const banner = document.createElement('div');
+  banner.id = 'ai-phishing-banner';
+  banner.innerHTML = `
+    <span class="b-icon">⛔</span>
+    <div class="b-text">
+      <div class="b-title">Phishing Website Detected!</div>
+      <div class="b-sub">Risk: ${data.risk_level} &nbsp;|&nbsp; Confidence: ${(data.confidence?.phishing || 0).toFixed(1)}% &nbsp;|&nbsp; AI Phishing Detector</div>
+    </div>
+    <button class="b-close" id="ai-close-btn">Dismiss</button>
+  `;
+  document.body.prepend(banner);
+
+  document.getElementById('ai-close-btn').onclick = () => {
+    banner.style.animation = 'slideIn 0.25s ease reverse';
+    setTimeout(() => banner.remove(), 250);
+  };
   setTimeout(() => {
-    if (banner.parentElement) {
-      banner.style.animation = 'slideDown 0.3s ease reverse';
-      setTimeout(() => banner.remove(), 300);
+    if (banner.isConnected) {
+      banner.style.animation = 'slideIn 0.25s ease reverse';
+      setTimeout(() => banner.remove(), 250);
     }
-  }, 10000);
+  }, 12000);
 }
 
-// Show desktop notification
+// ── Desktop notification ──────────────────────────────────────
 function showNotification(data) {
-  chrome.notifications.create({
-    type: 'basic',
-    iconUrl: 'icon.png',
-    title: '⚠️ Phishing Website Detected!',
-    message: `This website may be dangerous.\nRisk Level: ${data.risk_level}\nConfidence: ${data.confidence.phishing.toFixed(1)}%`,
-    priority: 2,
+  chrome.notifications.create(`phish-${Date.now()}`, {
+    type:               'basic',
+    iconUrl:            'icon.png',
+    title:              '⛔ Phishing Website Detected!',
+    message:            `Risk: ${data.risk_level} | Confidence: ${(data.confidence?.phishing || 0).toFixed(1)}%`,
+    priority:           2,
     requireInteraction: true
   });
 }
 
-// Listen for messages from popup
-chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-  if (request.action === 'getResult') {
-    const result = checkedUrls.get(request.url);
-    sendResponse(result || null);
+// ── Message listener (from popup) ────────────────────────────
+chrome.runtime.onMessage.addListener((req, sender, sendResponse) => {
+  if (req.action === 'getResult') {
+    const result = checkedUrls.get(req.url) || null;
+    sendResponse(result);
   }
+  return true;
 });
