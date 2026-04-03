@@ -1,20 +1,17 @@
-# Core Dependencies
-flask==3.0.0
-flask-cors==4.0.0
+# Fixed for Windows/Python 3.14 - precompiled wheels (no C++ needed)
+Flask==3.0.0
+Flask-CORS==4.0.0
+scikit-learn==1.5.1
+pandas==2.2.2
+numpy==2.0.1
+joblib==1.4.2
+requests==2.32.3
+beautifulsoup4==4.12.3
+lxml==5.2.1
+urllib3==2.2.2
+certifi==2024.8.30
 
-# Machine Learning
-scikit-learn==1.3.2
-numpy==1.26.2
-pandas==2.1.4
+# Note: If scikit-learn fails, install: https://visualstudio.microsoft.com/visual-cpp-build-tools/
+# Or use: pip install --only-binary=all scikit-learn
 
-# Data Processing
-joblib==1.3.2
 
-# Web Scraping
-requests==2.31.0
-beautifulsoup4==4.12.2
-lxml==5.1.0
-
-# Utilities
-urllib3==2.1.0
-certifi==2023.11.17
